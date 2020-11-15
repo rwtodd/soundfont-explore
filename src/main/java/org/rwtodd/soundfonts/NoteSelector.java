@@ -7,9 +7,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import javax.sound.midi.Instrument;
 import javax.sound.midi.InvalidMidiDataException;
+import javax.sound.midi.MidiChannel;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
 import javax.sound.midi.ShortMessage;
+import javax.sound.midi.Soundbank;
 import javax.sound.midi.Synthesizer;
 import javax.swing.JPanel;
 
@@ -24,68 +26,56 @@ public class NoteSelector extends MouseAdapter implements AutoCloseable {
     private int playingNote;
     private Instrument loadedInstrument;
     private final Synthesizer synth;
-    
+    private final MidiChannel channel0;
+    private Soundbank currentSoundbank;
+
     public NoteSelector() throws MidiUnavailableException {
         panel = new JPanel();
-        panel.setPreferredSize(new Dimension(40,200));
+        panel.setPreferredSize(new Dimension(40, 200));
         panel.addMouseListener(this);
         playingNote = -1;
         loadedInstrument = null;
         synth = MidiSystem.getSynthesizer();
         synth.open();
+        channel0 = synth.getChannels()[0];
+        currentSoundbank = null;
     }
 
     JPanel getUserInterface() {
         return panel;
     }
 
-    void setInstrument(Instrument i) {
-        if(i == null) return;
-        try {
-            if(loadedInstrument != null) {
-                synth.unloadInstrument(loadedInstrument);
-            }
-            synth.loadInstrument(i);
-            loadedInstrument = i;
-            synth.getReceiver().send(  
-                    new ShortMessage(ShortMessage.PROGRAM_CHANGE, 0, i.getPatch().getProgram(), i.getPatch().getBank()),
-                    -1);
-        } catch (InvalidMidiDataException|MidiUnavailableException ex) {
-            /* do what, exactly??? */
-            System.err.println(ex);
+    void setSoundbank(final Soundbank sb) {
+        if (currentSoundbank != null) {
+            synth.unloadAllInstruments(currentSoundbank);
         }
+        currentSoundbank = sb;
+        synth.loadAllInstruments(sb);
+    }
+
+    void setInstrument(final Instrument i) {
+        if (i == null) {
+            return;
+        }
+        channel0.programChange(i.getPatch().getBank(), i.getPatch().getProgram());
     }
 
     @Override
     public void mousePressed(MouseEvent me) {
         final double y = me.getY();
         final double ht = panel.getHeight();
+        // range of MIDI is 0 to 127....
         playingNote = 127 - (int) (127 * (y / ht));
         final int velocity = 90;
 
-        try {
-            // range of MIDI is 0 to 127....
-            final var msg = new ShortMessage(ShortMessage.NOTE_ON, 0, playingNote, velocity);
-            synth.getReceiver().send(msg, -1);
-        } catch (InvalidMidiDataException | MidiUnavailableException ex) {
-            /* for now, just ignore it... maybe need to do more... */
-            System.err.println(ex);
-        }
+        channel0.noteOn(playingNote, velocity);
     }
 
     @Override
     public void mouseReleased(MouseEvent me) {
         if (playingNote != -1) {
-            try {
-                // range of MIDI is 0 to 127....
-                final var msg = new ShortMessage(ShortMessage.NOTE_OFF, 0, playingNote, 0);
-                synth.getReceiver().send(msg, -1);
-            } catch (InvalidMidiDataException | MidiUnavailableException ex) {
-                /* for now, just ignore it... maybe need to do more... */
-                System.err.println(ex);
-            } finally {
-                playingNote = -1;
-            }
+            channel0.noteOff(playingNote);
+            playingNote = -1;
         }
     }
 

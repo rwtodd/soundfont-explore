@@ -15,6 +15,7 @@ import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.Instrument;
 import javax.sound.midi.MidiUnavailableException;
+import javax.sound.midi.Soundbank;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JMenuBar;
@@ -66,6 +67,8 @@ public class Cmd extends JFrame implements ActionListener {
                 evt -> {
                     if (evt.getPropertyName().equalsIgnoreCase("selectedInstrument")) {
                         noteSel.setInstrument((Instrument) evt.getNewValue());
+                    } else if (evt.getPropertyName().equalsIgnoreCase("soundbank")) {
+                        noteSel.setSoundbank((Soundbank)evt.getNewValue());
                     }
                 });
 
