@@ -1,18 +1,17 @@
 package org.rwtodd.soundfonts;
 
+import java.awt.Color;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.Closeable;
-import java.io.IOException;
 import javax.sound.midi.Instrument;
-import javax.sound.midi.InvalidMidiDataException;
 import javax.sound.midi.MidiChannel;
 import javax.sound.midi.MidiSystem;
 import javax.sound.midi.MidiUnavailableException;
-import javax.sound.midi.ShortMessage;
 import javax.sound.midi.Soundbank;
 import javax.sound.midi.Synthesizer;
+import javax.swing.JComponent;
 import javax.swing.JPanel;
 
 /**
@@ -22,26 +21,40 @@ import javax.swing.JPanel;
  */
 public class NoteSelector extends MouseAdapter implements AutoCloseable {
 
-    private final JPanel panel;
-    private int playingNote;
-    private Instrument loadedInstrument;
+    private final JComponent panel;
     private final Synthesizer synth;
     private final MidiChannel channel0;
     private Soundbank currentSoundbank;
 
     public NoteSelector() throws MidiUnavailableException {
-        panel = new JPanel();
-        panel.setPreferredSize(new Dimension(40, 200));
+        // This panel draws a grid to help you know you can click in it for
+        // notes+velocity info
+        panel = new JPanel() {
+            @Override
+            public void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                final int wd = getWidth();
+                final int ht = getHeight();
+                final int xinc = Math.max(wd / 64, 4);
+                final int yinc = Math.max(ht / 64, 4);
+                g.setColor(Color.BLACK);
+                for(int x = 0; x < wd; x+=xinc) {
+                    g.drawLine(x, 0, x, ht);
+                }
+                for(int y = 0; y < ht; y+=yinc) {
+                    g.drawLine(0, y, wd, y);
+                }
+            }
+        };
+        panel.setPreferredSize(new Dimension(128, 128));
         panel.addMouseListener(this);
-        playingNote = -1;
-        loadedInstrument = null;
         synth = MidiSystem.getSynthesizer();
         synth.open();
         channel0 = synth.getChannels()[0];
         currentSoundbank = null;
     }
 
-    JPanel getUserInterface() {
+    JComponent getUserInterface() {
         return panel;
     }
 
@@ -63,20 +76,22 @@ public class NoteSelector extends MouseAdapter implements AutoCloseable {
     @Override
     public void mousePressed(MouseEvent me) {
         final double y = me.getY();
-        final double ht = panel.getHeight();
-        // range of MIDI is 0 to 127....
-        playingNote = 127 - (int) (127 * (y / ht));
-        final int velocity = 90;
+        final double x = me.getX();
 
-        channel0.noteOn(playingNote, velocity);
+        final double ht = panel.getHeight();
+        final double wd = panel.getWidth();
+
+        // range of MIDI is 0 to 127....
+        final int midiNote = 127 - (int) (127 * (y / ht));
+        // range of Velocity i 0 to 127...
+        final int velocity = (int) (127 * (x / wd));
+
+        channel0.noteOn(midiNote, velocity);
     }
 
     @Override
     public void mouseReleased(MouseEvent me) {
-        if (playingNote != -1) {
-            channel0.noteOff(playingNote);
-            playingNote = -1;
-        }
+        channel0.allNotesOff();
     }
 
     @Override
